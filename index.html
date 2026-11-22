@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<!-- ============================================================
+     index.html — STRUKTUR HALAMAN (HTML)
+     ------------------------------------------------------------
+     4 layar utama, semua memakai class="screen":
+       1. menuScreen   → tombol PLAY
+       2. countScreen  → pilih jumlah pemain + durasi timer
+       3. setupScreen  → isi nama & pilih karakter (diisi JS)
+       4. gameScreen   → papan, dadu, daftar pemain
+
+     Yang sering diedit:
+       • data-count="2"  → jumlah pemain (tombol di #countGrid)
+       • data-seconds="30" → durasi timer; 0 = Mati
+       • teks judul/tagline → langsung diubah di sini
+       • warna & ukuran → ada di style.css, bukan di sini
+
+     Konten yang DIBUAT otomatis oleh script.js (jangan ditulis manual):
+       • 100 kotak di dalam #board
+       • garis tangga/ular di dalam <svg id="links">
+       • daftar pemain di #setupList dan #players
+       • isi soal di #quizList
+     ============================================================ -->
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#2F6B4F" />
+  <meta name="description" content="Petualangan Hutan — game Ular Tangga ramah anak dengan menu, pilih pemain, dan karakter." />
+  <title>Petualangan Hutan · Ular Tangga 🐍🌲</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Hiasan latar (pohon, daun, jamur). Boleh dihapus/ditambah emoji di sini.
+       aria-hidden="true" = dibaca sebagai dekorasi, bukan teks penting. -->
+  <div class="forest-decor" aria-hidden="true">
+    <span class="tree tree-1">🌲</span>
+    <span class="tree tree-2">🌳</span>
+    <span class="leaf leaf-1">🍃</span>
+    <span class="leaf leaf-2">🌿</span>
+    <span class="mushroom mush-1">🍄</span>
+    <span class="mushroom mush-2">🍄</span>
+    <span class="sparkle sp-1">✨</span>
+    <span class="sparkle sp-2">⭐</span>
+  </div>
+
+  <main class="app">
+    <!-- ============ LAYAR 1: MENU UTAMA ============ -->
+    <section id="menuScreen" class="screen active" aria-label="Menu utama">
+      <div class="hero-card">
+        <div class="hero-art" aria-hidden="true">
+          <span class="hero-tree left">🌲</span>
+          <span class="hero-tree right">🌳</span>
+        </div>
+        <p class="eyebrow">🐾 Ayo bertualang 🐾</p>
+        <h1>Petualangan <span>Hutan</span></h1>
+        <p class="tagline">Main Ular Tangga bersama teman-teman hutan!<br />Naik tangga, hindari ular, dan capai garis finish.</p>
+
+        <button id="playBtn" class="big-btn" type="button">
+          <span class="play-word">PLAY</span>
+          <span class="play-sub">Yuk, mulai sekarang!</span>
+        </button>
+
+        <div class="critters" aria-hidden="true">🐻 🦊 🐰 🦉 🐸</div>
+
+        <!-- KONTROL MUSIK disimpan di dalam kartu menu (tidak mengambang).
+             ▶ / ⏸ = putar/jeda (simbol teks, sengaja tidak memakai emoji 🎵
+             supaya tidak terlihat miring). Slider 0-100 = kerasnya suara.
+             Baris hint hanya muncul kalau browser memblokir autoplay. -->
+        <div class="music-bar" role="group" aria-label="Kontrol musik latar">
+          <button id="musicToggle" class="music-toggle" type="button" aria-label="Putar musik" title="Putar / jeda musik">▶</button>
+          <span class="music-label">Musik</span>
+          <input id="musicVolume" class="music-volume" type="range" min="0" max="100" step="5" value="35" aria-label="Volume musik" />
+          <span id="musicValue" class="music-value">35%</span>
+        </div>
+        <p id="musicHint" class="music-hint" hidden>🔈 Klik di mana saja untuk menyalakan musik</p>
+      </div>
+    </section>
+
+    <!-- ============ LAYAR 2: PILIH JUMLAH PEMAIN ============ -->
+    <section id="countScreen" class="screen" aria-label="Pilih jumlah pemain">
+      <div class="step-card">
+        <button class="back-btn" type="button" data-back="menuScreen">← Kembali</button>
+        <div class="step-badge">LANGKAH 1 / 2</div>
+        <h2>Berapa teman yang main?</h2>
+        <p class="subtitle">Pilih jumlah pemain, ya!</p>
+        <!-- Setiap tombol punya data-count = jumlah pemain.
+             script.js membaca angka ini saat tombol diklik.
+             Menambah tombol baru → tambahkan button dengan data-count="5" dst. -->
+        <div id="countGrid" class="count-grid">
+          <button class="count-card" type="button" data-count="2">
+            <span class="count-emoji">🐻🦊</span><strong>2 Pemain</strong><small>Seru berdua</small>
+          </button>
+          <button class="count-card" type="button" data-count="3">
+            <span class="count-emoji">🐻🦊🐰</span><strong>3 Pemain</strong><small>Ramai bertiga</small>
+          </button>
+          <button class="count-card" type="button" data-count="4">
+            <span class="count-emoji">🐻🦊🐰🦉</span><strong>4 Pemain</strong><small>Paling seru!</small>
+          </button>
+        </div>
+
+        <!-- PENGATURAN TIMER TIAP SOAL
+             data-seconds = durasi dalam detik.
+             data-seconds="0" berarti timer dimatikan ("Mati").
+             Durasi aktif dibaca script.js → variabel questionSeconds. -->
+        <div class="timer-setting">
+          <div class="timer-setting-head">
+            <span class="timer-setting-title">⏱️ Timer tiap soal</span>
+            <span class="timer-setting-sub">Pilih durasi sebelum mulai</span>
+          </div>
+          <div id="timerOptions" class="timer-options" role="group" aria-label="Durasi timer soal">
+            <button class="timer-option" type="button" data-seconds="15">15 dtk</button>
+            <button class="timer-option selected" type="button" data-seconds="30" aria-pressed="true">30 dtk</button>
+            <button class="timer-option" type="button" data-seconds="45">45 dtk</button>
+            <button class="timer-option" type="button" data-seconds="60">60 dtk</button>
+            <button class="timer-option" type="button" data-seconds="0">Mati</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LAYAR 3: SETUP PEMAIN ============ -->
+    <section id="setupScreen" class="screen" aria-label="Atur pemain">
+      <div class="step-card wide">
+        <button class="back-btn" type="button" data-back="countScreen">← Kembali</button>
+        <div class="step-badge">LANGKAH 2 / 2</div>
+        <h2>Kenali dulu para petualang!</h2>
+        <p class="subtitle">Tulis nama dan pilih karakter kesayanganmu.</p>
+        <!-- Kosong di HTML: baris nama + pilihan karakter dibuat script.js
+             lewat fungsi renderSetup(). -->
+        <div id="setupList" class="setup-list"></div>
+        <button id="startBtn" class="big-btn start-btn" type="button">MULAI MAIN</button>
+      </div>
+    </section>
+
+    <!-- ============ LAYAR 4: GAME ============ -->
+    <section id="gameScreen" class="screen" aria-label="Game ular tangga">
+      <header class="game-header">
+        <div class="logo-leaf" aria-hidden="true"><img src="assets/snake-icon.png" alt=""></div>
+        <div class="header-text">
+          <h1>Ular Tangga <span>Hutan</span></h1>
+          <p>Lempar dadu dan jelajahi hutan!</p>
+        </div>
+        <button id="soundBtn" class="icon-btn" type="button" aria-label="Matikan suara" title="Suara">🔊</button>
+        <button id="menuBtn" class="menu-btn" type="button">☰ Menu</button>
+      </header>
+
+      <div class="layout">
+        <div class="board-section">
+          <div class="board-wrap">
+            <!-- #board diisi 100 kotak oleh fungsi insertCells() di script.js.
+                 Urutan kotak zig-zag: baris bawah kiri→kanan, baris atas kanan→kiri.
+                 #links adalah lapisan SVG untuk menggambar tangga & ular. -->
+            <div id="board" class="board" aria-label="Papan game ular tangga, 100 kotak">
+              <svg id="links" class="links" aria-hidden="true"></svg>
+            </div>
+            <div class="start-strip" aria-hidden="true"><span>🚩 Mulai dari sini</span></div>
+          </div>
+        </div>
+
+        <aside class="panel">
+          <!-- Daftar pemain + skor. Isinya dibuat script.js (renderPlayers). -->
+          <div class="card players-card">
+            <div class="card-head">
+              <h2>Para Petualang</h2>
+              <span class="pill" id="turnPill">Giliran 1</span>
+            </div>
+            <div id="players" class="players"></div>
+          </div>
+
+          <div class="card dice-card">
+            <p class="turn-label">Sekarang giliran <strong id="turnName">...</strong></p>
+            <!-- 9 titik (pip) + angka besar di tengah.
+                 Posisi titik yang menyala diatur oleh PIPS di script.js. -->
+            <div id="die" class="die" role="img" aria-label="Dadu, angka 1">
+              <div class="pip-grid" aria-hidden="true">
+                <span class="pip"></span><span class="pip"></span><span class="pip"></span>
+                <span class="pip"></span><span class="pip"></span><span class="pip"></span>
+                <span class="pip"></span><span class="pip"></span><span class="pip"></span>
+              </div>
+              <span class="die-number" id="dieNumber">1</span>
+            </div>
+            <p class="dice-readout">Angka dadu: <strong id="diceReadout">1</strong></p>
+            <button id="rollBtn" class="roll-btn" type="button">Lempar Dadu 🎲</button>
+          </div>
+
+          <div id="message" class="message" role="status" aria-live="polite">
+            <span class="message-emoji">👋</span>
+            <span>Siap bertualang? Lempar dadu dulu, yuk!</span>
+          </div>
+
+          <div class="legend" aria-label="Legenda papan">
+            <span><i>🪜</i> Tangga = naik</span>
+            <span><i>🐍</i> Ular = turun</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL SOAL (muncul tiap kali pemain berhenti)
+       Isi #quizList dibuat script.js dari questions.js:
+       2 soal per kotak, dengan timer, gambar, dan tombol Benar/Salah.
+       Teks +15 ⭐ di bawah bisa diubah, tapi skor aslinya ada di script.js. -->
+  <div id="quizModal" class="modal" hidden>
+    <div class="modal-card quiz-card" role="dialog" aria-modal="true" aria-labelledby="quizTitle">
+      <div class="quiz-head">
+        <span class="quiz-badge">📝 Kotak <span id="quizBoxNo">1</span></span>
+        <span id="quizPlayer" class="quiz-player"></span>
+      </div>
+      <h2 id="quizTitle">Dua soal untukmu!</h2>
+      <!-- Aturan skor 3 tingkat. Teks di sini hanya penjelasan;
+           angka skor aslinya ada di script.js (fungsi rollDice). -->
+      <p class="quiz-sub">2 benar <strong>+15 ⭐</strong> · 1 benar <strong>+5 ⭐</strong> · 0 benar <strong>-5 ⭐</strong></p>
+      <div id="quizList" class="quiz-list"></div>
+      <div id="quizFeedback" class="quiz-feedback" hidden></div>
+      <button id="quizSubmit" class="big-btn quiz-submit" type="button">Kirim Jawaban ✅</button>
+    </div>
+  </div>
+
+  <!-- MODAL PEMENANG -->
+  <div id="winModal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+      <div class="trophy">🏆</div>
+      <h2 id="winTitle">Hore, menang!</h2>
+      <p id="winText">Berhasil sampai di garis finish!</p>
+      <button id="playAgainBtn" class="big-btn" type="button"><span class="again-icon">🎮</span> Main Lagi</button>
+      <button id="backToMenuBtn" class="text-btn" type="button">Kembali ke Menu</button>
+    </div>
+  </div>
+
+  <!-- MUSIK LATAR
+       File: assets/Bg-Music.mp4 (audio AAC di dalam format mp4).
+       .png tidak bisa diputar sebagai musik, makanya pakai .mp4.
+       autoplay  → langsung dicoba diputar saat halaman dibuka / di-refresh
+       loop      → diputar terus sampai dijeda / dimatikan
+       preload   → metadata saja supaya tidak langsung mengunduh 18 MB
+       Catatan: Chrome boleh memblokir autoplay bersuara. Kalau itu terjadi,
+       script.js menampilkan petunjuk "klik di mana saja" di kartu menu. -->
+  <audio id="bgMusic" src="assets/Bg-Music.mp4" autoplay loop preload="metadata"></audio>
+
+  <div id="confetti" class="confetti" aria-hidden="true"></div>
+
+  <!-- URUTAN PENTING:
+       questions.js        → bank soal (auto-generated, jangan edit manual)
+       sketches.js         → sketsa SVG bawaan
+       custom-sketches.js  → gambar buatan Anda (auto-generated)
+       script.js           → logika game; HARUS paling terakhir -->
+  <script src="questions.js"></script>
+  <script src="sketches.js"></script>
+  <script src="assets/sketches/custom-sketches.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

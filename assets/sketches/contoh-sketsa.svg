@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-label="Templat sketsa">
+  <rect width="960" height="560" fill="#FDF3DB"/>
+  <rect x="16" y="16" width="928" height="528" rx="48" fill="none" stroke="#D9A57F" stroke-width="8"/>
+  <g fill="none" stroke="#C58153" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="300" cy="230" r="70"/>
+    <path d="M300 300 V420 M300 340 L220 390 M300 340 L380 390 M300 420 L240 490 M300 420 L360 490"/>
+  </g>
+  <text x="620" y="250" text-anchor="middle" font-family="Fredoka, Comic Sans MS, sans-serif" font-size="44" font-weight="700" fill="#804020">Gambar Anda di sini</text>
+  <text x="620" y="310" text-anchor="middle" font-family="Fredoka, Comic Sans MS, sans-serif" font-size="26" fill="#A07150">Rasio 12 : 7 (960 × 560)</text>
+  <text x="620" y="360" text-anchor="middle" font-family="Fredoka, Comic Sans MS, sans-serif" font-size="24" fill="#A07150">Boleh PNG / JPG / SVG</text>
+</svg>
