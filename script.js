@@ -9,6 +9,7 @@
      ~64  questionSeconds   : durasi timer default (30)
      ~110 Soal & skor       : 2 benar +15, 1 benar +5, 0 benar -5, finish +100
      ~77  bgMusic           : musik latar dari assets/Bg-Music.mp4 + slider volume
+     ~950 Rekam gameplay    : tombol ⏺️, auto-stop + download saat menang
      ~430 Timer soal        : hitung mundur & waktu habis
      ~490 Gambar soal       : pakai file custom, fallback SVG
      ~660 Aturan dadu       : kelebihan langkah dipantulkan
@@ -73,6 +74,7 @@
   const turnPillEl  = $("turnPill");
   const messageEl   = $("message");
   const soundBtn    = $("soundBtn");
+  const recordBtn   = $("recordBtn");    // tombol ⏺️ / ⏹️ rekam gameplay
   const bgMusic     = $("bgMusic");      // elemen <audio> musik latar (di index.html)
   const musicToggle = $("musicToggle");  // tombol ▶/⏸ putar/jeda
   const musicVolume = $("musicVolume");  // slider 0-100
@@ -100,6 +102,10 @@
   let musicWanted = true;         // keinginan pengguna: true = musik boleh bunyi
   let volumeLevel = 35;           // volume slider 0-100 persen (default 35)
   let waitingGesture = false;     // penanda sedang menunggu klik pertama
+  let recorder = null;            // MediaRecorder untuk rekam gameplay
+  let recordStream = null;        // stream dari getDisplayMedia (tab browser)
+  let recordChunks = [];          // potongan video yang terkumpul
+  let recording = false;          // status sedang merekam atau tidak
 
   /* ---------------- Navigasi layar ---------------- */
   function showScreen(id) {
@@ -825,6 +831,8 @@
 
   function endGame(winner) {
     finished = true;
+    // Auto-stop rekaman tepat saat permainan selesai, lalu file ter-download.
+    if (recording) stopRecording();
     rolling = false;
     rollBtn.disabled = true;
     updateTurn();
@@ -930,12 +938,141 @@
   }
   function clearConfetti() { confettiEl.innerHTML = ""; }
 
+  /* ---------------- REKAM GAMEPLAY ----------------
+     Memakai Screen Capture API + MediaRecorder (Chrome/Edge modern).
+     Alur: klik ⏺️ → pengguna pilih tab ini → rekaman jalan →
+     otomatis berhenti saat pemenang muncul → file ter-download.
+
+     CATATAN PENTING:
+       • Browser TIDAK mengizinkan rekam otomatis tanpa izin. Harus ada klik.
+       • Pilih TAB ini dan centang "Bagikan audio tab" supaya musik + efek
+         suara game ikut terekam (mic tidak pernah dipakai).
+       • Format: WebM VP9 diprioritaskan karena paling stabil untuk rekam tab.
+          MP4 (H.264) kadang menghasilkan blok hijau di bagian bawah video.
+          Kalau ingin memaksa MP4 lagi, tukar urutan di pickRecordingMime().
+        • Jangan mengubah ukuran jendela / scroll saat merekam. */
+  function pickRecordingMime(hasAudio) {
+    const withAudio = [
+      "video/webm;codecs=vp9,opus",
+      "video/webm;codecs=vp8,opus",
+      "video/webm",
+      "video/mp4;codecs=avc1,mp4a.40.2",
+      "video/mp4",
+    ];
+    const videoOnly = [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+      "video/mp4;codecs=avc1",
+      "video/mp4",
+    ];
+    const list = hasAudio ? withAudio : videoOnly;
+    return list.find((t) => MediaRecorder.isTypeSupported(t)) || "";
+  }
+
+  function updateRecordUI() {
+    recordBtn.textContent = recording ? "⏹️" : "⏺️";
+    recordBtn.classList.toggle("recording", recording);
+    recordBtn.setAttribute("aria-label", recording ? "Hentikan rekaman" : "Mulai rekam gameplay");
+    recordBtn.title = recording ? "Hentikan & simpan rekaman" : "Rekam gameplay";
+  }
+
+  function downloadRecording(blob, mime) {
+    const ext = mime.indexOf("mp4") !== -1 ? "mp4" : "webm";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gameplay-ular-tangga-${Date.now()}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function releaseRecordStream() {
+    if (!recordStream) return;
+    recordStream.getTracks().forEach((track) => track.stop());
+    recordStream = null;
+  }
+
+  async function startRecording() {
+    if (recording) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || !window.MediaRecorder) {
+      say("⚠️", "Browser ini belum mendukung rekaman layar. Pakai Chrome terbaru, ya!");
+      tone(220, .15, "triangle");
+      return;
+    }
+    try {
+      // displaySurface: "browser" mengarahkan pengguna untuk memilih TAB,
+      // jadi audio yang masuk adalah audio game, bukan mic/system.
+      const support = navigator.mediaDevices.getSupportedConstraints?.() || {};
+      // Frame rate dipatok 30 fps supaya encoder tidak bingung (blok hijau).
+      const fps = { ideal: 30, max: 30 };
+      const video = support.displaySurface
+        ? { frameRate: fps, displaySurface: "browser" }
+        : { frameRate: fps };
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video, audio: true, preferCurrentTab: true,
+      });
+      recordStream = stream;
+
+      const hasAudio = stream.getAudioTracks().length > 0;
+      const mime = pickRecordingMime(hasAudio);
+      // Bitrate dinaikkan: latar Bg.png + animasi butuh lebih banyak data.
+      const options = { videoBitsPerSecond: 6_000_000, audioBitsPerSecond: 128_000 };
+      if (mime) options.mimeType = mime;
+      recorder = new MediaRecorder(stream, options);
+      recordChunks = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordChunks.push(e.data);
+      };
+      recorder.onstop = () => {
+        const type = recorder.mimeType || mime || "video/webm";
+        const blob = new Blob(recordChunks, { type });
+        if (blob.size > 0) downloadRecording(blob, type);
+        releaseRecordStream();
+        recorder = null;
+        recordChunks = [];
+        recording = false;
+        updateRecordUI();
+        if (!finished) say("💾", `Rekaman tersimpan (${type.indexOf("mp4") !== -1 ? "MP4" : "WebM"}).`);
+      };
+
+      // Kalau pengguna menekan "Stop sharing" di browser, hentikan juga.
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) videoTrack.addEventListener("ended", () => { if (recording) stopRecording(); }, { once: true });
+
+      recorder.start(1000);   // simpan potongan tiap 1 detik
+      recording = true;
+      updateRecordUI();
+      say("🔴", "Sedang merekam gameplay. Rekaman berhenti otomatis saat game selesai.");
+      tone(660, .08);
+    } catch (err) {
+      // Pengguna membatalkan dialog izin → tidak apa-apa, game tetap jalan.
+      releaseRecordStream();
+      recorder = null;
+      recording = false;
+      updateRecordUI();
+      say("🙂", "Rekaman dibatalkan. Game tetap bisa dilanjutkan.");
+    }
+  }
+
+  function stopRecording() {
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    else {
+      releaseRecordStream();
+      recording = false;
+      updateRecordUI();
+    }
+  }
+
   /* ---------------- Event ---------------- */
   // Klik PLAY tetap mencoba menyalakan musik (selain percobaan saat load).
   $("playBtn").addEventListener("click", () => { startBgMusic(); showScreen("countScreen"); });
-  $("menuBtn").addEventListener("click", () => showScreen("menuScreen"));
+  $("menuBtn").addEventListener("click", () => { if (recording) stopRecording(); showScreen("menuScreen"); });
   $("playAgainBtn").addEventListener("click", () => { winModal.hidden = true; setupGame(); });
-  $("backToMenuBtn").addEventListener("click", () => { winModal.hidden = true; showScreen("menuScreen"); });
+  $("backToMenuBtn").addEventListener("click", () => { winModal.hidden = true; if (recording) stopRecording(); showScreen("menuScreen"); });
   rollBtn.addEventListener("click", rollDice);
 
   // Tombol 🔊 di header: mute semua suara (efek + musik).
@@ -943,6 +1080,9 @@
     setMuted(!muted);
     if (!muted) tone(660, .08);
   });
+
+  // Tombol rekam: sekali klik mulai, klik lagi hentikan & download.
+  recordBtn.addEventListener("click", () => { if (recording) stopRecording(); else startRecording(); });
 
   // Tombol 🎵: putar / jeda musik. Saat menyalakan, mute dilepas dulu.
   musicToggle.addEventListener("click", () => {
